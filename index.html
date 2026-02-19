@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>REFLAX - Premium Earning</title>
     
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -22,7 +23,6 @@
         .logo-reflax { background: linear-gradient(to right, #7c3aed, #db2777); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 1.875rem; font-weight: 900; font-style: italic; }
         .method-card { border: 2px solid #f1f5f9; transition: 0.3s; cursor: pointer; }
         .method-card.selected { border-color: #7c3aed; background-color: #f5f3ff; }
-        /* Premium Glow Effect */
         .premium-card { border-left: 4px solid #fbbf24; background: linear-gradient(to right, #fffdf5, #ffffff); }
     </style>
 </head>
@@ -34,7 +34,6 @@
     </header>
 
     <main class="max-w-md mx-auto p-4">
-        
         <div id="home-section" class="tab-content">
             <div class="card p-6 mb-4 text-center">
                 <p class="text-gray-400 text-xs font-bold uppercase tracking-widest">Main Balance</p>
@@ -74,7 +73,6 @@
 
         <div id="earn-section" class="tab-content hidden">
             <h2 class="text-lg font-bold mb-4 px-2 uppercase text-xs tracking-widest text-gray-400">Task Center</h2>
-            
             <div class="card p-4 flex items-center justify-between premium-card mb-4 shadow-sm border border-yellow-100">
                 <div class="flex items-center">
                     <div class="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-600 text-white rounded-xl flex items-center justify-center mr-3 shadow-md">
@@ -172,7 +170,6 @@
                 <p class="text-center text-gray-400 text-xs py-5">No history found</p>
             </div>
         </div>
-
     </main>
 
     <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around p-3 z-50">
@@ -191,6 +188,10 @@
     </nav>
 
     <script>
+        // ১. টেলিগ্রাম সেটআপ
+        const tele = window.Telegram.WebApp;
+        tele.expand();
+
         const firebaseConfig = {
             apiKey: "AIzaSyBr-GNqWHhcFD19BSMk4ry2iZw1VkPP6lM",
             authDomain: "reflax-814b4.firebaseapp.com",
@@ -204,18 +205,38 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.database();
 
-        let userId = localStorage.getItem('reflax_id') || ('RF' + Math.floor(1000 + Math.random() * 9999));
+        // ২. ইউজার আইডি হ্যান্ডলিং
+        let userId = tele.initDataUnsafe?.user?.id?.toString() || localStorage.getItem('reflax_id') || ('RF' + Math.floor(1000 + Math.random() * 9999));
         localStorage.setItem('reflax_id', userId);
 
         let userData = { balance: 0, ads: 0, refers: 0 };
         let selectedPayment = "";
 
         window.onload = function() {
-            document.getElementById('display-user-id').innerText = userId;
-            document.getElementById('refer-link').value = window.location.origin + "/?ref=" + userId;
+            document.getElementById('display-user-id').innerText = "ID: " + userId;
+            
+            // ৩. স্মার্ট রেফার লিঙ্ক (বট থাকলে বটের নাম দিন)
+            let botUsername = "REFLAX1BOT"; 
+            document.getElementById('refer-link').value = "https://t.me/" + botUsername + "?start=" + userId;
+            
+            checkReferral(); // রেফারেল চেক
             loadFirebaseData();
             loadHistory();
         };
+
+        // ৪. রেফারেল কাউন্ট করার স্মার্ট ফাংশন
+        function checkReferral() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const refBy = urlParams.get('tgWebAppStartParam') || urlParams.get('ref') || urlParams.get('start');
+            
+            if (refBy && refBy !== userId && !localStorage.getItem('is_referred_already')) {
+                db.ref('users/' + refBy + '/refers').transaction((current) => {
+                    return (current || 0) + 1;
+                }).then(() => {
+                    localStorage.setItem('is_referred_already', 'true');
+                });
+            }
+        }
 
         function loadFirebaseData() {
             db.ref('users/' + userId).on('value', (snap) => {
@@ -225,40 +246,6 @@
                     db.ref('users/' + userId).set(userData);
                 }
                 updateUI();
-            });
-        }
-
-        function showAd() {
-            const btn = document.getElementById('adBtn');
-            if (typeof show_10611708 === 'function') {
-                btn.disabled = true;
-                btn.innerText = "Loading...";
-                show_10611708().then(() => {
-                    addTaka();
-                    btn.disabled = false;
-                    btn.innerText = "Watch";
-                }).catch(() => {
-                    setTimeout(addTaka, 4000); 
-                    btn.disabled = false;
-                    btn.innerText = "Watch";
-                });
-            } else {
-                alert("অ্যাড সার্ভিস লোড হয়নি।");
-            }
-        }
-
-        function addTaka() {
-            const userRef = db.ref('users/' + userId);
-            userRef.transaction((current) => {
-                if (current === null) {
-                    return { balance: 15, ads: 1, refers: 0 };
-                } else {
-                    return {
-                        ...current,
-                        balance: (Number(current.balance) || 0) + 15,
-                        ads: (Number(current.ads) || 0) + 1
-                    };
-                }
             });
         }
 
@@ -279,6 +266,32 @@
                 document.getElementById('withdraw-lock-msg').classList.remove('hidden');
                 document.getElementById('withdraw-form').classList.add('opacity-30', 'pointer-events-none');
             }
+        }
+
+        function showAd() {
+            const btn = document.getElementById('adBtn');
+            if (typeof show_10611708 === 'function') {
+                btn.disabled = true; btn.innerText = "Loading...";
+                show_10611708().then(() => {
+                    addTaka(); btn.disabled = false; btn.innerText = "Watch";
+                }).catch(() => {
+                    setTimeout(addTaka, 2000); 
+                    btn.disabled = false; btn.innerText = "Watch";
+                });
+            } else {
+                alert("অ্যাড সার্ভিস লোড হয়নি।");
+            }
+        }
+
+        function addTaka() {
+            db.ref('users/' + userId).transaction((current) => {
+                if (!current) return { balance: 15, ads: 1, refers: 0 };
+                return {
+                    ...current,
+                    balance: (Number(current.balance) || 0) + 15,
+                    ads: (Number(current.ads) || 0) + 1
+                };
+            });
         }
 
         function switchTab(tabId) {
@@ -302,12 +315,7 @@
             if(userData.balance < amt) return alert("পর্যাপ্ত ব্যালেন্স নেই!");
             
             db.ref('withdrawals').push({
-                userId,
-                method: selectedPayment,
-                number: num,
-                amount: amt,
-                status: 'Pending',
-                date: new Date().toLocaleDateString()
+                userId, method: selectedPayment, number: num, amount: amt, status: 'Pending', date: new Date().toLocaleDateString()
             }).then(() => {
                 db.ref('users/' + userId + '/balance').set(userData.balance - amt);
                 alert("রিকোয়েস্ট সফল হয়েছে!");
@@ -332,8 +340,7 @@
                                     <p class="text-[9px] text-gray-400">${data.date}</p>
                                 </div>
                                 <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${statusColor}">${data.status}</span>
-                            </div>
-                        `;
+                            </div>`;
                     }
                 });
                 if(count === 0) container.innerHTML = '<p class="text-center text-gray-400 text-xs py-5">No history found</p>';
@@ -344,7 +351,8 @@
             const copyText = document.getElementById("refer-link");
             copyText.select();
             navigator.clipboard.writeText(copyText.value);
-            alert("Copied!");
+            if(tele.showAlert) tele.showAlert("Refer Link Copied!");
+            else alert("Copied!");
         }
     </script>
 </body>
